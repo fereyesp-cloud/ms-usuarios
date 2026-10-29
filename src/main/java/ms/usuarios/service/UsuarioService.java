@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ms.usuarios.dto.LoginRequestDTO;
 import ms.usuarios.dto.UsuarioRequestDTO;
 import ms.usuarios.dto.UsuarioResponseDTO;
 import ms.usuarios.model.Usuario;
@@ -104,5 +105,32 @@ public class UsuarioService {
 
         usuarioRepository.delete(usuario);
         log.warn("Usuario eliminado correctamente con id {}", id);
+    }
+
+    // POST: login
+    public UsuarioResponseDTO login(LoginRequestDTO dto) {
+        log.info("Intento de login con email {}", dto.getEmail());
+
+        // 1. Buscar el usuario por email
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
+            .orElseThrow(() -> {
+                log.warn("Login fallido: email no registrado");
+                return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email o contraseña incorrectos");
+            });
+
+        // 2. Comparar la contraseña escrita con el hash guardado
+        if (!passwordEncoder.matches(dto.getPassword(), usuario.getPassword())) {
+            log.warn("Login fallido: contraseña incorrecta para {}", dto.getEmail());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email o contraseña incorrectos");
+        }
+
+        // 3. Verificar que esté activo
+        if (!usuario.getActivo()) {
+            log.warn("Login rechazado: usuario desactivado {}", dto.getEmail());
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuario desactivado");
+        }
+
+        log.info("Login exitoso para usuario id {}", usuario.getId());
+        return UsuarioResponseDTO.desdeEntidad(usuario);
     }
 }
